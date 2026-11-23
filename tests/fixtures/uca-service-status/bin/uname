@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Stand-in for uname, used by tests/test-uca-service-status.sh, so uca takes its
+# macOS launchd branch on any host. Everything except `uname -s` goes to the real one.
+if [ "${1:-}" = "-s" ] && [ $# -eq 1 ]; then
+  echo Darwin
+  exit 0
+fi
+for real in /usr/bin/uname /bin/uname; do
+  [ -x "$real" ] && exec "$real" "$@"
+done
+echo "fake uname: no real uname found" >&2
+exit 127

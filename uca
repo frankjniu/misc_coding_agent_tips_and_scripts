@@ -663,20 +663,41 @@ write_state() {
 }
 
 # Service Detection
+
+# True when launchd has a job with exactly this label loaded. Ask launchctl
+# about the label itself instead of scanning `launchctl list | grep -q`: under
+# `set -o pipefail`, grep -q exits at the first match, launchctl is killed by
+# SIGPIPE while still writing (exit 141), and the pipeline then fails, so a
+# loaded agent was reported as not loaded whenever its row came early in the
+# list. The grep pattern was also an unanchored regex. `print gui/<uid>/<label>`
+# finds an agent in the login session's domain even when uca runs over SSH;
+# `list <label>` covers the caller's own domain.
+launchd_label_loaded() {
+  local lbl="$1" uid
+  uid=$(id -u 2>/dev/null) || uid=""
+  if [ -n "$uid" ] && launchctl print "gui/${uid}/${lbl}" >/dev/null 2>&1; then
+    return 0
+  fi
+  launchctl list "$lbl" >/dev/null 2>&1
+}
+
 get_service_status() {
   if command -v launchctl &>/dev/null && [ "$(uname -s)" = "Darwin" ]; then
     local current_user="${USER:-$(whoami 2>/dev/null || echo "user")}"
-    local loaded=0
+    local loaded=0 installed=0
     for lbl in "com.${current_user}.uca" "com.jemanuel.uca" "com.uca.updater"; do
-      if launchctl list 2>/dev/null | grep -q "$lbl"; then
+      if launchd_label_loaded "$lbl"; then
         loaded=1
         break
       fi
+      [ -f "$LAUNCHD_DIR/${lbl}.plist" ] && installed=1
     done
     if [ "$loaded" -eq 1 ]; then
       echo "ACTIVE|launchd background service active (every 3 hours / 10800s)"
-    else
+    elif [ "$installed" -eq 1 ]; then
       echo "INACTIVE|launchd agent installed but not loaded"
+    else
+      echo "INACTIVE|launchd agent not installed (run: uca service install)"
     fi
   elif command -v systemctl &>/dev/null; then
     if systemctl --user is-active uca.timer &>/dev/null; then

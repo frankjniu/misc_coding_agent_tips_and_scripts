@@ -20,6 +20,16 @@ A tool for managing updates and version telemetry across five AI coding agent ha
 - Add `uninstall-uca.sh` (dedicated standalone uninstaller with Gum confirmation and service teardown)
 - Add `UNIVERSAL_CODING_AGENT_HARNESS_UPDATER.md` (comprehensive documentation guide)
 
+**Fixes** (2026-11-22):
+- `uca service status` (and the status dashboard and `uca doctor`) could report a loaded launchd
+  agent on macOS as `INACTIVE|launchd agent installed but not loaded`. The check ran
+  `launchctl list | grep -q <label>` under `set -o pipefail`; grep exits at the first match,
+  launchctl dies of SIGPIPE while still writing (exit 141), and the failed pipeline read as "not
+  loaded", depending on where the agent's row fell in the list. uca now asks launchd about the
+  exact label (`launchctl print gui/<uid>/<label>`, then `launchctl list <label>`), and says
+  `launchd agent not installed` when there is no plist at all. Regression test:
+  `tests/test-uca-service-status.sh` (#13)
+
 **Fixes** (2026-10-13):
 - `uca` treated any word it did not recognize as "update everything". The option loop had no
   default case, so `uca --version`, a common read-only probe, started a full update of every

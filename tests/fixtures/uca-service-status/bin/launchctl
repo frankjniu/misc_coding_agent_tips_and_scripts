@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Stand-in for macOS launchctl, used by tests/test-uca-service-status.sh.
+# It never talks to launchd.
+#
+#   FAKE_LAUNCHCTL_LOADED   label of the one loaded job (unset or empty: none)
+#   FAKE_LAUNCHCTL_DOMAIN   where that job lives:
+#                             both (default)  visible to `print gui/<uid>/...` and `list`
+#                             gui             only `print gui/<uid>/<label>` sees it, as for
+#                                             a login-session agent queried over SSH
+#
+# `launchctl list` with no label prints the loaded job's row first and then
+# enough filler rows to overflow a pipe buffer, so a reader that stops early
+# (grep -q) leaves this writer with SIGPIPE, the way the real launchctl fails.
+loaded="${FAKE_LAUNCHCTL_LOADED:-}"
+domain="${FAKE_LAUNCHCTL_DOMAIN:-both}"
+
+case "${1:-}" in
+  list)
+    if [ $# -ge 2 ]; then
+      if [ -n "$loaded" ] && [ "$domain" = both ] && [ "$2" = "$loaded" ]; then
+        printf '{\n\t"Label" = "%s";\n\t"LastExitStatus" = 0;\n};\n' "$2"
+        exit 0
+      fi
+      echo "Could not find service \"$2\" in domain for port" >&2
+      exit 113
+    fi
+    printf 'PID\tStatus\tLabel\n'
+    if [ -n "$loaded" ] && [ "$domain" = both ]; then
+      printf -- '-\t0\t%s\n' "$loaded"
+    fi
+    i=0
+    while [ "$i" -lt 20000 ]; do
+      printf -- '-\t0\tcom.example.filler-agent.%05d\n' "$i"
+      i=$((i + 1))
+    done
+    ;;
+  print)
+    target="${2:-}"
+    if [ -n "$loaded" ] && [ "$target" = "gui/$(id -u)/$loaded" ]; then
+      printf '%s = {\n\tstate = not running\n\trun interval = 10800 seconds\n}\n' "$target"
+      exit 0
+    fi
+    echo "Could not find service \"${target##*/}\" in domain" >&2
+    exit 113
+    ;;
+  *)
+    echo "fake launchctl: unexpected arguments: $*" >&2
+    exit 64
+    ;;
+esac

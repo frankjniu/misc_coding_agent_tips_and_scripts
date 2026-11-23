@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Fixture for tests/test-uca-service-status.sh: an installed but not loaded uca agent.
+     It is only checked for existence and is never handed to launchctl. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ucatest.uca</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/true</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>10800</integer>
+</dict>
+</plist>
